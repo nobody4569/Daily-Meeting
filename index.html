@@ -60,7 +60,7 @@
 </div>
 </main>
 <aside class="w-72 bg-slate-900 text-slate-300 flex flex-col shadow-2xl">
-<div class="p-6">
+<div class="p-6 overflow-y-auto h-full">
 <h2 class="text-white text-lg font-bold mb-4">Meeting Archive</h2>
 <button onclick="createNewDay()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold transition shadow-lg mb-6">
 
@@ -86,11 +86,7 @@
 
         function changeDate(newDate) {
 
-            if(confirm("Switch to this date? Make sure you saved current changes.")) {
-
-                loadDay(newDate);
-
-            }
+            loadDay(newDate);
 
         }
 
@@ -110,11 +106,11 @@
 
             let displayActions = savedData.actions;
 
-            // Requirement 5: Inherit all records from previous sessions if current is empty
+            // Inherit all unfinished items if opening a new/empty day
 
             if (displayActions.length === 0) {
 
-                displayActions = getAllActions(); 
+                displayActions = getAllPendingActions(); 
 
             }
 
@@ -122,13 +118,13 @@
 
             if (displayActions.length === 0) addRow();
 
+            renderHistoryNav();
+
         }
 
-        // Logic to grab all actions from historical data
+        function getAllPendingActions() {
 
-        function getAllActions() {
-
-            let allItems = [];
+            let allPending = [];
 
             const keys = Object.keys(localStorage).filter(k => k.startsWith('meeting_')).sort();
 
@@ -136,17 +132,13 @@
 
                 const data = JSON.parse(localStorage.getItem(key));
 
-                // Only carry over Pending items to the new page
-
                 const pending = data.actions.filter(a => a.status === 'Pending');
 
-                allItems.push(...pending);
+                allPending.push(...pending);
 
             });
 
-            // Remove duplicates based on content
-
-            return Array.from(new Map(allItems.map(item => [item.content, item])).values());
+            return Array.from(new Map(allPending.map(item => [item.content, item])).values());
 
         }
 
@@ -213,6 +205,32 @@
 
         }
 
+        // Sidebar logic with DELETE function
+
+        function deleteMeeting(date, event) {
+
+            event.stopPropagation(); // Prevent loading the day when clicking delete
+
+            if(confirm(`Are you sure you want to delete the record for ${date}?`)) {
+
+                localStorage.removeItem(`meeting_${date}`);
+
+                if(currentKey === date) {
+
+                    const today = new Date().toISOString().split('T')[0];
+
+                    loadDay(today);
+
+                } else {
+
+                    renderHistoryNav();
+
+                }
+
+            }
+
+        }
+
         function renderHistoryNav() {
 
             const nav = document.getElementById('historyNav');
@@ -245,7 +263,14 @@
 
                     structure[y][m].forEach(date => {
 
-                        yHtml += `<div onclick="loadDay('${date}')" class="pl-3 py-1 hover:bg-slate-800 cursor-pointer rounded ${date === currentKey ? 'text-blue-400 font-bold' : ''}">${date}</div>`;
+                        yHtml += `
+<div onclick="loadDay('${date}')" class="group/item flex justify-between items-center pl-3 pr-2 py-1 hover:bg-slate-800 cursor-pointer rounded ${date === currentKey ? 'text-blue-400 font-bold bg-slate-800' : ''}">
+<span>${date}</span>
+<button onclick="deleteMeeting('${date}', event)" class="opacity-0 group-hover/item:opacity-100 text-slate-500 hover:text-red-500 transition text-base">
+
+                                    🗑
+</button>
+</div>`;
 
                     });
 
@@ -291,7 +316,7 @@
 
             const fullText = `Meeting Date: ${currentKey}\n\n【AGENDA】\n${agenda}\n\n${actionText}`;
 
-            navigator.clipboard.writeText(fullText).then(() => alert('Copied to clipboard in Email format!'));
+            navigator.clipboard.writeText(fullText).then(() => alert('Copied to clipboard!'));
 
         }
 </script>
