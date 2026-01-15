@@ -6,6 +6,106 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>每日會議紀錄（Agenda / Action）</title>
   <style>
+
+    
+// ===== 到期判斷（以使用者本地時區為準）=====
+function parseDateLocal(yyyy_mm_dd){
+  if(!yyyy_mm_dd) return null;
+  const [y,m,d] = yyyy_mm_dd.split('-').map(Number);
+  // 以 local 時區建立該日 00:00
+  return new Date(y, (m||1)-1, d||1);
+}
+function startOfDay(dt){ const t=new Date(dt); t.setHours(0,0,0,0); return t; }
+
+function getDueState(dueStr){
+  // 回傳：'overdue' | 'today' | 'soon' | 'later' | 'none'
+  const due = parseDateLocal(dueStr);
+  if(!due) return 'none';
+  const today = startOfDay(new Date());
+  const dd = startOfDay(due);
+
+  const diffDays = Math.round((dd - today) / (1000*60*60*24)); // due - today
+  if(diffDays < 0) return 'overdue';
+  if(diffDays === 0) return 'today';
+  if(diffDays > 0 && diffDays <= 7) return 'soon';
+  return 'later';
+}
+
+function dueStateToText(state){
+  return ({
+    overdue: '逾期',
+    today: '今天',
+    soon: '近7天',
+    later: '之後',
+    none: '未填'
+  })[state] || '未填';
+}
+
+function applyDueStylesToActionRow(tr, dueStr, status){
+  // 套用在本日 Action 表格的列
+  const state = getDueState(dueStr);
+  // 整列背景（僅未結案才標紅）
+  tr.classList.toggle('is-overdue', state==='overdue' && status!=='done');
+
+  // 在「到期日」欄位下方加一個 due-pill 指示
+  const tdDue = tr.querySelectorAll('td')[2];
+  if(!tdDue) return;
+  let pill = tdDue.querySelector('.due-pill');
+  if(!pill){
+    pill = document.createElement('div');
+    pill.className = 'due-pill';
+    tdDue.appendChild(document.createElement('br'));
+    tdDue.appendChild(pill);
+  }
+  pill.textContent = dueStateToText(state);
+  pill.className = 'due-pill ' + (
+    state==='overdue' ? 'due-overdue' :
+    state==='today'   ? 'due-today'   :
+    state==='soon'    ? 'due-soon'    :
+    'due-later'
+  );
+}
+
+function applyDueStylesToOpenRow(tr, dueStr){
+  // 套用在「跨日未結案」彙總表格的列（不提供狀態切換，僅顯示）
+  const state = getDueState(dueStr);
+  const tdDue = tr.querySelectorAll('td')[2];
+  if(!tdDue) return;
+  let pill = tdDue.querySelector('.due-pill');
+  if(!pill){
+    pill = document.createElement('span');
+    pill.className = 'due-pill';
+    tdDue.innerHTML = ''; // 以 pill 取代原文字
+    tdDue.appendChild(pill);
+  }
+  pill.textContent = dueStr ? `${dueStr} · ${dueStateToText(state)}` : `未填 · ${dueStateToText(state)}`;
+  pill.className = 'due-pill ' + (
+    state==='overdue' ? 'due-overdue' :
+    state==='today'   ? 'due-today'   :
+    state==='soon'    ? 'due-soon'    :
+    'due-later'
+  );
+
+  // 額外：逾期列淡紅背景
+  tr.classList.toggle('is-overdue', state==='overdue');
+}
+
+
+/* 到期提醒顏色 */
+.due-pill{
+  display:inline-block; min-width:80px; text-align:center;
+  padding:2px 8px; border-radius:999px; font-size:12px; border:1px solid var(--border);
+  background:#f3f4f6; color:#374151;
+}
+.due-overdue{ background:#fee2e2; color:#7f1d1d; border-color:#fecaca; }   /* 逾期：紅 */
+.due-today{ background:#fde68a; color:#7c2d12; border-color:#fcd34d; }     /* 今天：黃 */
+.due-soon{ background:#dbeafe; color:#1e3a8a; border-color:#bfdbfe; }      /* 近7天：藍 */
+.due-later{ background:#e5e7eb; color:#374151; }                           /* 之後：灰 */
+
+/* 逾期整列淡紅背景，加強可讀性（不影響可輸入） */
+tr.is-overdue td{ background: #fff7f7; }
+
+    
     :root{
       --bg:#f7f8fa;
       --panel:#ffffff;
