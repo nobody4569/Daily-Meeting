@@ -1,63 +1,126 @@
 
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-TW">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>每日會議紀錄（Agenda / Action）</title>
-  <style>
-    :root{
-      --bg:#f7f8fa;
-      --panel:#ffffff;
-      --text:#1f2937;
-      --muted:#6b7280;
-      --primary:#2563eb;
-      --primary-weak:#dbeafe;
-      --border:#e5e7eb;
-      --success:#16a34a;
-      --danger:#ef4444;
-      --warn:#f59e0b;
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{
-      margin:0;
-      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Microsoft JhengHei", Roboto, "Helvetica Neue", Arial;
-      background:var(--bg);
-      color:var(--text);
-    }
-    header{
-      position:sticky; top:0; z-index:10;
-      background:var(--panel); border-bottom:1px solid var(--border);
-      padding:12px 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;
-    }
-    header h1{font-size:18px; margin:0 12px 0 0;}
-    .date-controls{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
-    .date-controls input[type="date"]{
-      padding:6px 8px; border:1px solid var(--border); border-radius:8px; background:white;
-    }
-    .btn{
-      padding:8px 12px; border-radius:8px; border:1px solid var(--border);
-      background:white; cursor:pointer; color:var(--text);
-    }
-    .btn.primary{background:var(--primary); color:white; border-color:var(--primary);}
-    .btn.ghost{background:transparent;}
-    .btn.success{background:var(--success); color:white; border-color:var(--success);}
-    .btn.warn{background:var(--warn); color:white; border-color:var(--warn);}
-    .btn.danger{background:var(--danger); color:white; border-color:var(--danger);}
-    .btn:disabled{opacity:.5; cursor:not-allowed}
-    .layout{display:grid; grid-template-columns: 1fr 280px; gap:12px; padding:12px; align-items:start;}
-    aside{
-      position:sticky; top:64px;
-      background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:10px; max-height: calc(100vh - 80px); overflow:auto;
-    }
-    .panel{
-      background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:12px;
-    }
-    .columns{display:grid; grid-template-columns: 1fr 1fr; gap:12px;}
-    .section-title{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;}
-    .section-title h2{font-size:16px; margin:0;}
-    .toolbar{display:flex; gap:6px; flex-wrap:wrap;}
-    .content-editable{
-      border:1px dashed var(--border); border-radius:8px; min-height:180px; padding:10px; background:#fff;
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>每日會議紀錄工具</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+
+        .editable { min-height: 100px; border: 1px solid #e5e7eb; padding: 10px; border-radius: 8px; }
+
+        .editable:focus { outline: 2px solid #3b82f6; }
+</style>
+</head>
+<body class="bg-gray-50 flex h-screen">
+<main class="flex-1 p-8 overflow-y-auto">
+<div class="max-w-4xl mx-auto bg-white p-6 shadow-lg rounded-xl">
+<header class="flex justify-between items-center mb-6 border-b pb-4">
+<h1 id="currentDate" class="text-2xl font-bold text-gray-800">2026-01-15 會議紀錄</h1>
+<button onclick="exportToMail()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">一鍵匯出 Email</button>
+</header>
+<section class="mb-8">
+<h2 class="text-lg font-semibold mb-2 text-blue-600">1. Agenda (議程/備忘錄)</h2>
+<div id="agendaContent" contenteditable="true" class="editable bg-white" placeholder="可在此輸入文字或貼上圖片..."></div>
+</section>
+<section>
+<h2 class="text-lg font-semibold mb-2 text-orange-600">2. Action Items (待辦清單 - 僅列出未結案)</h2>
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-gray-100">
+<th class="p-2 border">內容</th>
+<th class="p-2 border">到期日</th>
+<th class="p-2 border">Owner</th>
+<th class="p-2 border">狀態</th>
+</tr>
+</thead>
+<tbody id="actionTableBody">
+</tbody>
+</table>
+<button onclick="addRow()" class="mt-4 text-sm text-blue-500 hover:underline">+ 新增行動事項</button>
+</section>
+</div>
+</main>
+<aside class="w-64 bg-gray-800 text-white p-6 overflow-y-auto">
+<h2 class="text-xl font-bold mb-4">歷史紀錄</h2>
+<button onclick="createNewEntry()" class="w-full bg-green-600 py-2 rounded mb-6 font-medium">+ 新增今日紀錄</button>
+<div id="historyList">
+</div>
+</aside>
+<script>
+
+        // 資料結構構想
+
+        // 1. Agenda 使用 contenteditable，支援內嵌 base64 圖片。
+
+        // 2. Action Items 會從 localStorage 讀取所有未結案 (status !== 'Done') 的項目。
+
+        function addRow(content = '', date = '', owner = '', status = 'Pending') {
+
+            const tbody = document.getElementById('actionTableBody');
+
+            const tr = document.createElement('tr');
+
+            tr.innerHTML = `
+<td class="border p-2"><input type="text" value="${content}" class="w-full outline-none"></td>
+<td class="border p-2"><input type="date" value="${date}" class="w-full outline-none"></td>
+<td class="border p-2"><input type="text" value="${owner}" class="w-full outline-none"></td>
+<td class="border p-2">
+<select onchange="handleStatusChange(this)" class="w-full outline-none">
+<option value="Pending" ${status === 'Pending' ? 'selected' : ''}>進行中</option>
+<option value="Done" ${status === 'Done' ? 'selected' : ''}>已結案</option>
+</select>
+</td>
+
+            `;
+
+            tbody.appendChild(tr);
+
+        }
+
+        function exportToMail() {
+
+            const agenda = document.getElementById('agendaContent').innerText;
+
+            const rows = Array.from(document.querySelectorAll('#actionTableBody tr'));
+
+            let actionText = "Action Items:\n";
+
+            rows.forEach(row => {
+
+                const inputs = row.querySelectorAll('input, select');
+
+                if(inputs[3].value !== 'Done') {
+
+                    actionText += `- [${inputs[2].value}] ${inputs[0].value} (到期日: ${inputs[1].value})\n`;
+
+                }
+
+            });
+
+            const fullText = `會議紀錄\n\nAgenda:\n${agenda}\n\n${actionText}`;
+
+            // 複製到剪貼簿
+
+            navigator.clipboard.writeText(fullText).then(() => {
+
+                alert('已複製 Email 格式內容！可以直接貼上至郵件。');
+
+            });
+
+        }
+
+        // 初始化
+
+        window.onload = () => {
+
+            addRow(); // 預設一行
+
+            // 這裡可以加入讀取 localStorage 的 logic
+
+        };
+</script>
+</body>
+</html>
+ 
