@@ -1,60 +1,154 @@
-
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>每日會議紀錄工具</title>
+<title>Daily Meeting Tracker</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
 
-        .editable { min-height: 100px; border: 1px solid #e5e7eb; padding: 10px; border-radius: 8px; }
+        .editable-area { min-height: 200px; border: 1px solid #e5e7eb; padding: 15px; border-radius: 8px; background: white; }
 
-        .editable:focus { outline: 2px solid #3b82f6; }
+        .editable-area:focus { outline: 2px solid #3b82f6; border-color: transparent; }
+
+        .editable-area img { max-width: 100%; height: auto; margin-top: 10px; border-radius: 4px; }
+
+        ::-webkit-scrollbar { width: 6px; }
+
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 10px; }
 </style>
 </head>
-<body class="bg-gray-50 flex h-screen">
-<main class="flex-1 p-8 overflow-y-auto">
-<div class="max-w-4xl mx-auto bg-white p-6 shadow-lg rounded-xl">
-<header class="flex justify-between items-center mb-6 border-b pb-4">
-<h1 id="currentDate" class="text-2xl font-bold text-gray-800">2026-01-15 會議紀錄</h1>
-<button onclick="exportToMail()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">一鍵匯出 Email</button>
+<body class="bg-gray-50 flex h-screen overflow-hidden text-gray-800">
+<main class="flex-1 flex flex-col overflow-hidden">
+<header class="bg-white border-b px-8 py-4 flex justify-between items-center shadow-sm">
+<h1 id="displayDate" class="text-2xl font-bold text-gray-700 tracking-tight">載入中...</h1>
+<div class="space-x-2">
+<button onclick="saveCurrentData()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm transition">儲存變更</button>
+<button onclick="exportToMail()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm transition font-medium">一鍵匯出 Email</button>
+</div>
 </header>
-<section class="mb-8">
-<h2 class="text-lg font-semibold mb-2 text-blue-600">1. Agenda (議程/備忘錄)</h2>
-<div id="agendaContent" contenteditable="true" class="editable bg-white" placeholder="可在此輸入文字或貼上圖片..."></div>
+<div class="flex-1 overflow-y-auto p-8">
+<div class="max-w-4xl mx-auto space-y-8">
+<section>
+<h2 class="text-sm font-bold text-blue-500 uppercase tracking-widest mb-3">1. Agenda & Notes (可貼圖)</h2>
+<div id="agendaContent" contenteditable="true" class="editable-area shadow-inner" placeholder="在此輸入議程內容或貼上圖片..."></div>
 </section>
 <section>
-<h2 class="text-lg font-semibold mb-2 text-orange-600">2. Action Items (待辦清單 - 僅列出未結案)</h2>
-<table class="w-full text-left border-collapse">
-<thead>
-<tr class="bg-gray-100">
-<th class="p-2 border">內容</th>
-<th class="p-2 border">到期日</th>
-<th class="p-2 border">Owner</th>
-<th class="p-2 border">狀態</th>
+<h2 class="text-sm font-bold text-orange-500 uppercase tracking-widest mb-3">2. Action Items (未結案累計)</h2>
+<div class="bg-white shadow rounded-lg overflow-hidden border">
+<table class="w-full text-left">
+<thead class="bg-gray-50 border-b">
+<tr>
+<th class="p-3 text-xs font-semibold text-gray-500">內容</th>
+<th class="p-3 text-xs font-semibold text-gray-500 w-40">到期日</th>
+<th class="p-3 text-xs font-semibold text-gray-500 w-32">負責人</th>
+<th class="p-3 text-xs font-semibold text-gray-500 w-32">狀態</th>
 </tr>
 </thead>
-<tbody id="actionTableBody">
-</tbody>
+<tbody id="actionTableBody"></tbody>
 </table>
-<button onclick="addRow()" class="mt-4 text-sm text-blue-500 hover:underline">+ 新增行動事項</button>
+<div class="p-3 bg-gray-50 border-t">
+<button onclick="addRow()" class="text-sm text-blue-600 hover:text-blue-800 font-medium">+ 新增行動事項</button>
+</div>
+</div>
 </section>
 </div>
+</div>
 </main>
-<aside class="w-64 bg-gray-800 text-white p-6 overflow-y-auto">
-<h2 class="text-xl font-bold mb-4">歷史紀錄</h2>
-<button onclick="createNewEntry()" class="w-full bg-green-600 py-2 rounded mb-6 font-medium">+ 新增今日紀錄</button>
-<div id="historyList">
+<aside class="w-72 bg-gray-900 text-gray-300 flex flex-col shadow-2xl">
+<div class="p-6">
+<h2 class="text-white text-lg font-bold mb-4">會議紀錄存檔</h2>
+<button onclick="createNewDay()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold transition shadow-lg mb-6">
+
+                + 開啟今日紀錄
+</button>
+<div id="historyNav" class="space-y-4">
+</div>
 </div>
 </aside>
 <script>
 
-        // 資料結構構想
+        let currentKey = ""; // 格式: YYYY-MM-DD
 
-        // 1. Agenda 使用 contenteditable，支援內嵌 base64 圖片。
+        // --- 核心功能：初始化 ---
 
-        // 2. Action Items 會從 localStorage 讀取所有未結案 (status !== 'Done') 的項目。
+        window.onload = () => {
+
+            const today = new Date().toISOString().split('T')[0];
+
+            loadDay(today);
+
+            renderHistoryNav();
+
+        };
+
+        // --- 核心功能：讀取資料 ---
+
+        function loadDay(dateStr) {
+
+            currentKey = dateStr;
+
+            document.getElementById('displayDate').innerText = `${dateStr} 會議紀錄`;
+
+            const savedData = JSON.parse(localStorage.getItem(`meeting_${dateStr}`)) || { agenda: "", actions: [] };
+
+            // 渲染 Agenda
+
+            document.getElementById('agendaContent').innerHTML = savedData.agenda;
+
+            // 渲染 Action Items (若為新的一天，自動抓取舊的 Pending 項目)
+
+            const tbody = document.getElementById('actionTableBody');
+
+            tbody.innerHTML = "";
+
+            let displayActions = savedData.actions;
+
+            // 如果是今天且沒有紀錄，則嘗試繼承之前的 Pending 事項
+
+            if (displayActions.length === 0) {
+
+                displayActions = getAllPendingActions();
+
+            }
+
+            displayActions.forEach(item => addRow(item.content, item.date, item.owner, item.status));
+
+            if (displayActions.length === 0) addRow(); // 保持一行空白
+
+        }
+
+        // --- 核心功能：獲取所有歷史中未結案的事項 ---
+
+        function getAllPendingActions() {
+
+            let allPending = [];
+
+            for (let i = 0; i < localStorage.length; i++) {
+
+                const key = localStorage.key(i);
+
+                if (key.startsWith('meeting_')) {
+
+                    const data = JSON.parse(localStorage.getItem(key));
+
+                    const pending = data.actions.filter(a => a.status === 'Pending');
+
+                    allPending.push(...pending);
+
+                }
+
+            }
+
+            // 根據內容去重（避免重複繼承）
+
+            const unique = Array.from(new Map(allPending.map(item => [item.content, item])).values());
+
+            return unique;
+
+        }
+
+        // --- 介面功能：新增表格行 ---
 
         function addRow(content = '', date = '', owner = '', status = 'Pending') {
 
@@ -62,12 +156,14 @@
 
             const tr = document.createElement('tr');
 
+            tr.className = "border-b last:border-0 hover:bg-gray-50 transition";
+
             tr.innerHTML = `
-<td class="border p-2"><input type="text" value="${content}" class="w-full outline-none"></td>
-<td class="border p-2"><input type="date" value="${date}" class="w-full outline-none"></td>
-<td class="border p-2"><input type="text" value="${owner}" class="w-full outline-none"></td>
-<td class="border p-2">
-<select onchange="handleStatusChange(this)" class="w-full outline-none">
+<td class="p-2"><input type="text" value="${content}" class="w-full bg-transparent outline-none px-2 py-1"></td>
+<td class="p-2"><input type="date" value="${date}" class="w-full bg-transparent outline-none px-2 py-1 text-sm"></td>
+<td class="p-2"><input type="text" value="${owner}" class="w-full bg-transparent outline-none px-2 py-1 text-sm"></td>
+<td class="p-2">
+<select onchange="saveCurrentData()" class="w-full bg-transparent outline-none text-sm font-medium ${status === 'Done' ? 'text-green-600' : 'text-orange-600'}">
 <option value="Pending" ${status === 'Pending' ? 'selected' : ''}>進行中</option>
 <option value="Done" ${status === 'Done' ? 'selected' : ''}>已結案</option>
 </select>
@@ -79,47 +175,137 @@
 
         }
 
+        // --- 核心功能：儲存 ---
+
+        function saveCurrentData() {
+
+            const agenda = document.getElementById('agendaContent').innerHTML;
+
+            const actionRows = Array.from(document.querySelectorAll('#actionTableBody tr'));
+
+            const actions = actionRows.map(row => {
+
+                const inputs = row.querySelectorAll('input, select');
+
+                return {
+
+                    content: inputs[0].value,
+
+                    date: inputs[1].value,
+
+                    owner: inputs[2].value,
+
+                    status: inputs[3].value
+
+                };
+
+            }).filter(item => item.content.trim() !== ""); // 過濾空行
+
+            const dataToSave = { agenda, actions };
+
+            localStorage.setItem(`meeting_${currentKey}`, JSON.stringify(dataToSave));
+
+            renderHistoryNav();
+
+        }
+
+        // --- 側邊欄邏輯：自動分類 ---
+
+        function renderHistoryNav() {
+
+            const nav = document.getElementById('historyNav');
+
+            nav.innerHTML = "";
+
+            const keys = [];
+
+            for (let i = 0; i < localStorage.length; i++) {
+
+                if (localStorage.key(i).startsWith('meeting_')) {
+
+                    keys.push(localStorage.key(i).replace('meeting_', ''));
+
+                }
+
+            }
+
+            keys.sort().reverse();
+
+            // 結構化數據：{ "2026": { "01": ["2026-01-15", "..."] } }
+
+            const structure = {};
+
+            keys.forEach(k => {
+
+                const [y, m, d] = k.split('-');
+
+                if (!structure[y]) structure[y] = {};
+
+                if (!structure[y][m]) structure[y][m] = [];
+
+                structure[y][m].push(k);
+
+            });
+
+            for (const y in structure) {
+
+                let yHtml = `<details open class="group"><summary class="cursor-pointer font-bold text-gray-400 group-hover:text-white transition">${y}年</summary><div class="ml-4 mt-2 space-y-2">`;
+
+                for (const m in structure[y]) {
+
+                    yHtml += `<details open><summary class="cursor-pointer text-sm font-semibold text-gray-500">${m}月</summary><div class="ml-2 border-l border-gray-700 my-1 font-light text-xs">`;
+
+                    structure[y][m].forEach(date => {
+
+                        yHtml += `<div onclick="loadDay('${date}')" class="pl-3 py-1 hover:bg-gray-800 cursor-pointer rounded">${date}</div>`;
+
+                    });
+
+                    yHtml += `</div></details>`;
+
+                }
+
+                yHtml += `</div></details>`;
+
+                nav.innerHTML += yHtml;
+
+            }
+
+        }
+
+        function createNewDay() {
+
+            const today = new Date().toISOString().split('T')[0];
+
+            loadDay(today);
+
+        }
+
         function exportToMail() {
 
             const agenda = document.getElementById('agendaContent').innerText;
 
-            const rows = Array.from(document.querySelectorAll('#actionTableBody tr'));
+            const actionRows = Array.from(document.querySelectorAll('#actionTableBody tr'));
 
-            let actionText = "Action Items:\n";
+            let actionText = "【待辦事項追蹤】\n";
 
-            rows.forEach(row => {
+            actionRows.forEach(row => {
 
                 const inputs = row.querySelectorAll('input, select');
 
-                if(inputs[3].value !== 'Done') {
+                if(inputs[0].value && inputs[3].value !== 'Done') {
 
-                    actionText += `- [${inputs[2].value}] ${inputs[0].value} (到期日: ${inputs[1].value})\n`;
+                    actionText += `• [${inputs[2].value || '無'}] ${inputs[0].value} (截止: ${inputs[1].value || '未定'})\n`;
 
                 }
 
             });
 
-            const fullText = `會議紀錄\n\nAgenda:\n${agenda}\n\n${actionText}`;
+            const fullText = `會議日期：${currentKey}\n\n【會議議程】\n${agenda}\n\n${actionText}`;
 
-            // 複製到剪貼簿
-
-            navigator.clipboard.writeText(fullText).then(() => {
-
-                alert('已複製 Email 格式內容！可以直接貼上至郵件。');
-
-            });
+            navigator.clipboard.writeText(fullText).then(() => alert('已生成複製 Email 格式！內容包含議程與未結案事項。'));
 
         }
-
-        // 初始化
-
-        window.onload = () => {
-
-            addRow(); // 預設一行
-
-            // 這裡可以加入讀取 localStorage 的 logic
-
-        };
 </script>
 </body>
 </html>
