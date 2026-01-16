@@ -24,8 +24,7 @@
 <h2 class="text-white text-lg font-bold mb-4">Projects</h2>
 <div class="mb-6 space-y-2">
 <div class="flex space-x-2">
-<select id="projectSelect" onchange="switchProject(this.value)" class="flex-1 bg-slate-800 text-white p-2 rounded-lg outline-none border border-slate-700 focus:border-blue-500 text-sm">
-</select>
+<select id="projectSelect" onchange="switchProject(this.value)" class="flex-1 bg-slate-800 text-white p-2 rounded-lg outline-none border border-slate-700 focus:border-blue-500 text-sm"></select>
 <button onclick="deleteCurrentProject()" title="Delete Project" class="bg-slate-800 hover:bg-red-900 text-slate-400 hover:text-white p-2 rounded-lg transition border border-slate-700">🗑</button>
 </div>
 <button onclick="addProject()" class="w-full text-xs text-blue-400 hover:text-blue-300 text-left px-1 font-medium">+ Add New Project</button>
@@ -44,7 +43,7 @@
 </div>
 <div class="space-x-2">
 <button onclick="saveCurrentData()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-lg text-sm transition shadow-sm">Save Changes</button>
-<button onclick="exportToMailHTML()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm transition font-medium shadow-sm">Export to Email (with Images)</button>
+<button onclick="exportToMailHTML()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm transition font-medium shadow-sm">Export to Email (Inc. Images & All Items)</button>
 </div>
 </header>
 <div class="flex-1 overflow-y-auto p-8">
@@ -54,7 +53,7 @@
 <div id="agendaContent" contenteditable="true" class="editable-area shadow-inner" placeholder="Enter agenda or paste screenshots here..."></div>
 </section>
 <section>
-<h2 class="text-sm font-bold text-orange-500 uppercase tracking-widest mb-3 italic">2. Action Items</h2>
+<h2 class="text-sm font-bold text-orange-500 uppercase tracking-widest mb-3 italic">2. Action Items (Full Tracker)</h2>
 <div class="bg-white shadow rounded-lg overflow-hidden border">
 <table class="w-full text-left" id="mainActionTable">
 <thead class="bg-gray-50 border-b">
@@ -91,8 +90,6 @@
             loadDay(today);
 
         };
-
-        // --- Project Logic ---
 
         function initProjects() {
 
@@ -174,8 +171,6 @@
 
         }
 
-        // --- Meeting Logic ---
-
         function loadDay(dateStr) {
 
             currentKey = dateStr;
@@ -194,7 +189,9 @@
 
             let displayActions = savedData.actions;
 
-            if (displayActions.length === 0) displayActions = getProjectPendingActions(); 
+            // 重要：繼承所有項目 (包含 Pending 與 Done)
+
+            if (displayActions.length === 0) displayActions = getProjectAllActions(); 
 
             displayActions.forEach(item => addRow(item.content, item.date, item.owner, item.status));
 
@@ -204,11 +201,13 @@
 
         }
 
-        function getProjectPendingActions() {
+        function getProjectAllActions() {
 
-            let allPending = [];
+            let allItems = [];
 
             const prefix = `${currentProject}_`;
+
+            // 按日期排序以確保拿到最新的狀態
 
             Object.keys(localStorage).sort().forEach(key => {
 
@@ -216,15 +215,15 @@
 
                     const data = JSON.parse(localStorage.getItem(key));
 
-                    const pending = data.actions.filter(a => a.status === 'Pending');
-
-                    allPending.push(...pending);
+                    if (data.actions) allItems.push(...data.actions);
 
                 }
 
             });
 
-            return Array.from(new Map(allPending.map(item => [item.content, item])).values());
+            // 根據內容去重，保留最後一次出現的狀態
+
+            return Array.from(new Map(allItems.map(item => [item.content, item])).values());
 
         }
 
@@ -241,7 +240,7 @@
 <td class="p-2"><input type="date" value="${date}" class="w-full bg-transparent outline-none px-2 py-1"></td>
 <td class="p-2"><input type="text" value="${owner}" class="w-full bg-transparent outline-none px-2 py-1"></td>
 <td class="p-2">
-<select onchange="saveCurrentData()" class="w-full bg-transparent outline-none font-medium ${status === 'Done' ? 'text-green-600' : 'text-orange-600'}">
+<select onchange="saveCurrentData(); updateStatusColor(this)" class="w-full bg-transparent outline-none font-medium ${status === 'Done' ? 'text-green-600' : 'text-orange-600'}">
 <option value="Pending" ${status === 'Pending' ? 'selected' : ''}>Pending</option>
 <option value="Done" ${status === 'Done' ? 'selected' : ''}>Done</option>
 </select>
@@ -253,6 +252,12 @@
             `;
 
             tbody.appendChild(tr);
+
+        }
+
+        function updateStatusColor(select) {
+
+            select.className = `w-full bg-transparent outline-none font-medium ${select.value === 'Done' ? 'text-green-600' : 'text-orange-600'}`;
 
         }
 
@@ -329,35 +334,41 @@
 
         }
 
-        // --- EXPORT HTML LOGIC ---
-
         async function exportToMailHTML() {
 
             const agendaHTML = document.getElementById('agendaContent').innerHTML;
 
             const actionRows = Array.from(document.querySelectorAll('#actionTableBody tr'));
 
-            // Build Action Table HTML
+            // 構建包含所有項目的表格 (包含 Done)
 
             let actionTableHTML = `
-<table style="width:100%; border-collapse:collapse; margin-top:20px; font-family: sans-serif;">
+<table style="width:100%; border-collapse:collapse; margin-top:20px; font-family: sans-serif; font-size: 14px;">
 <tr style="background-color:#f8f9fa;">
-<th style="border:1px solid #ddd; padding:8px; text-align:left;">Task</th>
-<th style="border:1px solid #ddd; padding:8px; text-align:left;">Due</th>
-<th style="border:1px solid #ddd; padding:8px; text-align:left;">Owner</th>
+<th style="border:1px solid #ddd; padding:10px; text-align:left;">Status</th>
+<th style="border:1px solid #ddd; padding:10px; text-align:left;">Task Description</th>
+<th style="border:1px solid #ddd; padding:10px; text-align:left;">Due</th>
+<th style="border:1px solid #ddd; padding:10px; text-align:left;">Owner</th>
 </tr>`;
 
             actionRows.forEach(row => {
 
                 const inputs = row.querySelectorAll('input, select');
 
-                if(inputs[0].value && inputs[3].value !== 'Done') {
+                if(inputs[0].value) {
+
+                    const isDone = inputs[3].value === 'Done';
+
+                    const statusText = isDone ? '<b style="color:green;">[Done]</b>' : '<b style="color:orange;">[Pending]</b>';
+
+                    const textStyle = isDone ? 'text-decoration: line-through; color: #888;' : '';
 
                     actionTableHTML += `
 <tr>
-<td style="border:1px solid #ddd; padding:8px;">${inputs[0].value}</td>
-<td style="border:1px solid #ddd; padding:8px;">${inputs[1].value}</td>
-<td style="border:1px solid #ddd; padding:8px;">${inputs[2].value}</td>
+<td style="border:1px solid #ddd; padding:8px; text-align:center;">${statusText}</td>
+<td style="border:1px solid #ddd; padding:8px; ${textStyle}">${inputs[0].value}</td>
+<td style="border:1px solid #ddd; padding:8px; ${textStyle}">${inputs[1].value}</td>
+<td style="border:1px solid #ddd; padding:8px; ${textStyle}">${inputs[2].value}</td>
 </tr>`;
 
                 }
@@ -367,11 +378,12 @@
             actionTableHTML += `</table>`;
 
             const fullContentHTML = `
-<div style="font-family: sans-serif; color: #333;">
-<h2 style="color: #2563eb;">Meeting Minutes: ${currentProject} (${currentKey})</h2>
-<h3 style="border-bottom: 2px solid #2563eb; padding-bottom: 5px;">1. Agenda & Notes</h3>
-<div>${agendaHTML}</div>
-<h3 style="border-bottom: 2px solid #ea580c; padding-bottom: 5px; margin-top: 30px;">2. Action Items (Pending)</h3>
+<div style="font-family: sans-serif; color: #333; line-height: 1.6;">
+<h2 style="color: #2563eb; margin-bottom: 5px;">Meeting Minutes: ${currentProject}</h2>
+<p style="color: #666; margin-top: 0;">Date: ${currentKey}</p>
+<h3 style="border-bottom: 2px solid #2563eb; padding-bottom: 5px; color: #2563eb;">1. Agenda & Notes</h3>
+<div style="background: #fff; padding: 10px;">${agendaHTML}</div>
+<h3 style="border-bottom: 2px solid #ea580c; padding-bottom: 5px; margin-top: 30px; color: #ea580c;">2. Action Items Tracker (All Items)</h3>
 
                     ${actionTableHTML}
 </div>
@@ -382,17 +394,21 @@
 
                 const blob = new Blob([fullContentHTML], { type: 'text/html' });
 
-                const data = [new ClipboardItem({ 'text/html': blob, 'text/plain': new Blob([document.getElementById('agendaContent').innerText], { type: 'text/plain' }) })];
+                const data = [new ClipboardItem({ 
+
+                    'text/html': blob, 
+
+                    'text/plain': new Blob([document.getElementById('agendaContent').innerText], { type: 'text/plain' }) 
+
+                })];
 
                 await navigator.clipboard.write(data);
 
-                alert('Copied to clipboard with Images! You can now paste (Ctrl+V) directly into Outlook or Gmail.');
+                alert('Success! All items (Done/Pending) and images are copied. You can now paste into your email.');
 
             } catch (err) {
 
-                console.error(err);
-
-                alert('Export failed. Please ensure you are using a modern browser (Chrome/Edge).');
+                alert('Export failed. Please try again.');
 
             }
 
