@@ -43,7 +43,7 @@
 </div>
 <div class="space-x-2">
 <button onclick="saveCurrentData()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-lg text-sm transition shadow-sm">Save Changes</button>
-<button onclick="exportToMailHTML()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm transition font-medium shadow-sm">Export to Email (Inc. Images & All Items)</button>
+<button onclick="exportToMailHTML()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm transition font-medium shadow-sm">Export to Email</button>
 </div>
 </header>
 <div class="flex-1 overflow-y-auto p-8">
@@ -189,8 +189,6 @@
 
             let displayActions = savedData.actions;
 
-            // 重要：繼承所有項目 (包含 Pending 與 Done)
-
             if (displayActions.length === 0) displayActions = getProjectAllActions(); 
 
             displayActions.forEach(item => addRow(item.content, item.date, item.owner, item.status));
@@ -207,8 +205,6 @@
 
             const prefix = `${currentProject}_`;
 
-            // 按日期排序以確保拿到最新的狀態
-
             Object.keys(localStorage).sort().forEach(key => {
 
                 if (key.startsWith(prefix)) {
@@ -220,8 +216,6 @@
                 }
 
             });
-
-            // 根據內容去重，保留最後一次出現的狀態
 
             return Array.from(new Map(allItems.map(item => [item.content, item])).values());
 
@@ -340,8 +334,6 @@
 
             const actionRows = Array.from(document.querySelectorAll('#actionTableBody tr'));
 
-            // 構建包含所有項目的表格 (包含 Done)
-
             let actionTableHTML = `
 <table style="width:100%; border-collapse:collapse; margin-top:20px; font-family: sans-serif; font-size: 14px;">
 <tr style="background-color:#f8f9fa;">
@@ -377,13 +369,15 @@
 
             actionTableHTML += `</table>`;
 
+            // Agenda 區塊現在直接貼上原始 HTML，不額外加數字標籤
+
             const fullContentHTML = `
 <div style="font-family: sans-serif; color: #333; line-height: 1.6;">
 <h2 style="color: #2563eb; margin-bottom: 5px;">Meeting Minutes: ${currentProject}</h2>
 <p style="color: #666; margin-top: 0;">Date: ${currentKey}</p>
-<h3 style="border-bottom: 2px solid #2563eb; padding-bottom: 5px; color: #2563eb;">1. Agenda & Notes</h3>
+<h3 style="border-bottom: 2px solid #2563eb; padding-bottom: 5px; color: #2563eb;">Agenda & Notes</h3>
 <div style="background: #fff; padding: 10px;">${agendaHTML}</div>
-<h3 style="border-bottom: 2px solid #ea580c; padding-bottom: 5px; margin-top: 30px; color: #ea580c;">2. Action Items Tracker (All Items)</h3>
+<h3 style="border-bottom: 2px solid #ea580c; padding-bottom: 5px; margin-top: 30px; color: #ea580c;">Action Items Tracker</h3>
 
                     ${actionTableHTML}
 </div>
@@ -404,11 +398,11 @@
 
                 await navigator.clipboard.write(data);
 
-                alert('Success! All items (Done/Pending) and images are copied. You can now paste into your email.');
+                alert('Copied! Agenda content and full Action Items are ready to paste.');
 
             } catch (err) {
 
-                alert('Export failed. Please try again.');
+                alert('Export failed.');
 
             }
 
@@ -434,5 +428,4 @@
 </script>
 </body>
 </html>
- 
  
